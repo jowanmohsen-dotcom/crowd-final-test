@@ -193,6 +193,12 @@ def predict_best_visit_time(event_id):
     now = datetime.now()
     step = 0.5 if total_hours <= 6 else 1.0
 
+    # For multi-day events, track daily operating hours to skip overnight gaps
+    start_tod = start_dt.hour * 3600 + start_dt.minute * 60  # seconds since midnight
+    end_tod   = end_dt.hour * 3600 + end_dt.minute * 60
+    multi_day = total_hours > 24
+    overnight_event = start_tod > end_tod  # operating hours span midnight (e.g. 22:00–04:00)
+
     slots = []
     t = 0.0
     while t <= total_hours + step * 0.5:
@@ -201,14 +207,31 @@ def predict_best_visit_time(event_id):
         crowd_frac *= expected_max / capacity  # scale to fill-rate
         predicted_pct = int(round(min(100.0, crowd_frac * 100)))
 
-        slot_dt   = start_dt + timedelta(hours=t)
-        is_past   = slot_dt < now - timedelta(minutes=15)
-        is_now    = abs((slot_dt - now).total_seconds()) < (step * 3600 * 0.6)
-        label     = _crowd_label(predicted_pct)
+        slot_dt = start_dt + timedelta(hours=t)
+
+        # Skip slots outside daily operating hours for multi-day events.
+        # Only filter when start_tod != end_tod (i.e. event has defined off-hours).
+        # If they're equal the event runs continuously — show all hourly slots.
+        if multi_day and start_tod != end_tod:
+            slot_tod = slot_dt.hour * 3600 + slot_dt.minute * 60
+            if overnight_event:
+                in_hours = slot_tod >= start_tod or slot_tod <= end_tod
+            else:
+                in_hours = start_tod <= slot_tod <= end_tod
+            if not in_hours:
+                t += step
+                continue
+
+        is_past = slot_dt < now - timedelta(minutes=15)
+        is_now  = abs((slot_dt - now).total_seconds()) < (step * 3600 * 0.6)
+        label   = _crowd_label(predicted_pct)
+
+        _h = slot_dt.hour % 12 or 12
+        _time_label = f"{_h}:{slot_dt.strftime('%M')} {'AM' if slot_dt.hour < 12 else 'PM'}"
 
         slots.append({
             'hour_offset':   round(t, 1),
-            'time_label':    slot_dt.strftime('%H:%M'),
+            'time_label':    _time_label,
             'date_label':    slot_dt.strftime('%a %d %b'),
             'predicted_pct': predicted_pct,
             'crowd_label':   label,

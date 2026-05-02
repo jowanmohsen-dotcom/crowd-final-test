@@ -695,6 +695,10 @@ function renderBestVisitCardInner(pred) {
     slots = sampled;
   }
 
+  var hasMultipleDays = slots.length > 1 && slots.some(function(s, i) {
+    return i > 0 && s.date_label !== slots[i - 1].date_label;
+  });
+
   var maxPct = Math.max.apply(null, slots.map(function(s) { return s.predicted_pct; })) || 1;
   var minBarH = 4;
   var maxBarH = 80;
@@ -703,9 +707,10 @@ function renderBestVisitCardInner(pred) {
     var barH = Math.max(minBarH, Math.round((s.predicted_pct / maxPct) * maxBarH));
     var isRec = rec && s.time_label === rec.time_label && s.date_label === rec.date_label;
     var opacity = s.is_past ? '0.35' : '1';
-    var outline = isRec ? 'box-shadow:0 0 0 2px #22C55E;border-radius:6px;' : '';
+    var outline = '';
+    var barLabel = hasMultipleDays ? (s.date_label.substring(0, 3) + ' ' + s.time_label) : s.time_label;
     return '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;opacity:' + opacity + ';flex:1;min-width:0;">' +
-      '<div style="font-size:9px;color:var(--muted);writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;max-height:40px;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(s.time_label) + '</div>' +
+      '<div style="font-size:9px;color:var(--muted);writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;max-height:72px;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(barLabel) + '</div>' +
       '<div style="width:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:' + maxBarH + 'px;">' +
         '<div style="width:clamp(4px,100%,18px);height:' + barH + 'px;background:' + s.crowd_color + ';border-radius:4px 4px 2px 2px;' + outline + 'transition:height 0.3s;position:relative;">' +
           (isRec ? '<div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%);width:6px;height:6px;background:#22C55E;border-radius:50%;"></div>' : '') +
